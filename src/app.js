@@ -21,7 +21,8 @@ const app = express();
 app.use(express.json({ limit: "150mb" }));
 app.use(
   cors({
-    origin: "*",
+    origin: ["http://localhost:3000", "https://cleanfoods.vercel.app"],
+    credentials: true,
   }),
 );
 
