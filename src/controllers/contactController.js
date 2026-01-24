@@ -60,13 +60,10 @@ exports.submitInquiry = async (req, res) => {
   }
 };
 
-// GET ALL MESSAGES (Admin Only)
+// GET ALL MESSAGES
 exports.getAllMessages = async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Access denied." });
-    }
-
+    // We are pulling from the "messages" collection defined in submitInquiry
     const snapshot = await db
       .collection("messages")
       .orderBy("createdAt", "desc")
@@ -76,8 +73,10 @@ exports.getAllMessages = async (req, res) => {
       id: doc.id,
       ...doc.data(),
     }));
+
     res.status(200).json(messages);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Fetch Messages Error:", err);
+    res.status(500).json({ error: "Failed to fetch messages: " + err.message });
   }
 };

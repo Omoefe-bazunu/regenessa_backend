@@ -9,6 +9,7 @@ const reviewRoutes = require("./routes/productReviewRoutes");
 const cartRoutes = require("./routes/cartRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const contactRoutes = require("./routes/contactRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
 
 const app = express();
 
@@ -20,10 +21,7 @@ const app = express();
 app.use(express.json({ limit: "150mb" }));
 app.use(
   cors({
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
+    origin: "*",
   }),
 );
 
@@ -34,6 +32,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/upload", uploadRoutes);
 
 // --- Health Check ---
 app.get("/health", (req, res) => {

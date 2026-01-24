@@ -65,6 +65,40 @@ exports.addToCart = async (req, res) => {
   }
 };
 
+// 2B. UPDATE ITEM QUANTITY (NEW - THIS WAS MISSING!)
+exports.updateQuantity = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { quantity } = req.body;
+    const userId = req.user.userId;
+    const cartRef = db.collection("carts").doc(userId);
+
+    const doc = await cartRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "Cart not found" });
+
+    let items = doc.data().items;
+    const itemIndex = items.findIndex((item) => item.productId === productId);
+
+    if (itemIndex === -1) {
+      return res.status(404).json({ error: "Item not found in cart" });
+    }
+
+    // Update the quantity
+    items[itemIndex].quantity = Number(quantity);
+
+    // Recalculate total
+    const total = items.reduce(
+      (acc, item) => acc + item.price * item.quantity,
+      0,
+    );
+
+    await cartRef.update({ items, total, updatedAt: new Date().toISOString() });
+    res.status(200).json({ message: "Quantity updated", items });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // 3. REMOVE SINGLE ITEM
 exports.removeFromCart = async (req, res) => {
   try {
@@ -80,7 +114,7 @@ exports.removeFromCart = async (req, res) => {
       0,
     );
 
-    await cartRef.update({ items, total });
+    await cartRef.update({ items, total, updatedAt: new Date().toISOString() });
     res.status(200).json({ message: "Item removed", items });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -96,21 +130,3 @@ exports.clearCart = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
-/* Option A: Frontend-Only Cart (Recommended for MVPs) You store the cart items in the browser's localStorage. 
-When the user is ready to buy, they send the entire cart to the Orders endpoint.
-
-Pros: Fast, no database lag when adding items, works offline.
-
-Cons: If the user switches from their phone to their laptop, the cart won't follow them.
-
-Option B: Backend-Stored Cart You save the cart items in Firestore under the user's ID.
-
-Pros: Cart persists across all devices (phone, tablet, PC).
-
-Cons: Requires a database call every time a user clicks "Add to Cart," which can feel slightly slower. 
-
-In this case, we used option B, since we are building a professional brand for wholesalers who might start 
-an order on mobile and finish on a PC, Option B (Backend Cart) is a great choice.
-
-*/
