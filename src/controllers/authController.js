@@ -63,12 +63,10 @@ exports.login = async (req, res) => {
       { expiresIn: "7d" },
     );
 
-    res
-      .status(200)
-      .json({
-        token,
-        user: { fullName: userData.fullName, email: userData.email },
-      });
+    res.status(200).json({
+      token,
+      user: { fullName: userData.fullName, email: userData.email },
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -94,10 +92,10 @@ exports.forgotPassword = async (req, res) => {
     });
 
     // Send email via Resend
-    const resetLink = `https://cleanfoods.ng/reset-password?token=${resetToken}`;
+    const resetLink = `https://cleanfoods.com.ng/reset-password?token=${resetToken}`;
 
     await resend.emails.send({
-      from: "Clean Foods <auth@cleanfoods.ng>",
+      from: "Clean Foods <info@higher.com.ng>",
       to: email,
       subject: "Reset Your Clean Foods Password",
       html: `<p>You requested a password reset. Click <a href="${resetLink}">here</a> to reset it. Link expires in 15 mins.</p>`,

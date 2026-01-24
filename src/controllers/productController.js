@@ -7,7 +7,7 @@ exports.createProduct = async (req, res) => {
     const {
       name,
       category,
-      subCategory,
+      // subCategory removed to match UI
       price,
       unit,
       stock,
@@ -18,15 +18,14 @@ exports.createProduct = async (req, res) => {
 
     const newProduct = {
       name,
-      category, // e.g., "Rice"
-      subCategory, // e.g., "Nigerian Rice"
+      category,
       price: Number(price),
-      unit, // e.g., "50kg Bag"
-      stock: Number(stock),
+      unit,
+      stock: stock ? Number(stock) : 0, // Handle optional stock
       description,
       imageUrl,
-      status: status || "active", // 'active' or 'out-of-stock'
-      ratings: [],
+      status: status || "active",
+      reviewCount: 0, // Changed from ratings array to match reviewController logic
       avgRating: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -41,14 +40,13 @@ exports.createProduct = async (req, res) => {
   }
 };
 
-// 2. GET ALL PRODUCTS (with filtering)
+// 2. GET ALL PRODUCTS
 exports.getAllProducts = async (req, res) => {
   try {
-    const { category, subCategory } = req.query;
+    const { category } = req.query; // subCategory removed from query
     let query = db.collection("products");
 
     if (category) query = query.where("category", "==", category);
-    if (subCategory) query = query.where("subCategory", "==", subCategory);
 
     const snapshot = await query.orderBy("createdAt", "desc").get();
     const products = snapshot.docs.map((doc) => ({
@@ -64,29 +62,19 @@ exports.getAllProducts = async (req, res) => {
   }
 };
 
-// 3. GET SINGLE PRODUCT
-exports.getSingleProduct = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const doc = await db.collection("products").doc(id).get();
-
-    if (!doc.exists) {
-      return res.status(404).json({ error: "Product not found" });
-    }
-
-    res.status(200).json({ id: doc.id, ...doc.data() });
-  } catch (error) {
-    res.status(500).json({ error: "Error fetching product: " + error.message });
-  }
-};
-
-// 4. UPDATE/EDIT PRODUCT
+// 3. UPDATE/EDIT PRODUCT
 exports.updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
 
-    // Ensure we track when it was last edited
+    // Remove subCategory from updates if it accidentally comes from frontend
+    delete updates.subCategory;
+
+    // Ensure numeric values are actually numbers
+    if (updates.price) updates.price = Number(updates.price);
+    if (updates.stock) updates.stock = Number(updates.stock);
+
     updates.updatedAt = new Date().toISOString();
 
     const productRef = db.collection("products").doc(id);
@@ -100,6 +88,21 @@ exports.updateProduct = async (req, res) => {
     res.status(200).json({ message: "Product updated successfully", id });
   } catch (error) {
     res.status(500).json({ error: "Update failed: " + error.message });
+  }
+};
+// 4. GET SINGLE PRODUCT
+exports.getSingleProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doc = await db.collection("products").doc(id).get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    res.status(200).json({ id: doc.id, ...doc.data() });
+  } catch (error) {
+    res.status(500).json({ error: "Error fetching product: " + error.message });
   }
 };
 

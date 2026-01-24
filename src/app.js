@@ -8,6 +8,7 @@ const productRoutes = require("./routes/productRoutes");
 const reviewRoutes = require("./routes/productReviewRoutes");
 const cartRoutes = require("./routes/cartRoutes");
 const orderRoutes = require("./routes/orderRoutes");
+const contactRoutes = require("./routes/contactRoutes");
 
 const app = express();
 
@@ -17,7 +18,14 @@ const app = express();
  * which is essential for merging base64 TTS chunks.
  */
 app.use(express.json({ limit: "150mb" }));
-app.use(cors({ origin: "*" }));
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  }),
+);
 
 // --- API Route Middlewares ---
 app.use("/api/auth", authRoutes);
@@ -25,6 +33,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/contact", contactRoutes);
 
 // --- Health Check ---
 app.get("/health", (req, res) => {
