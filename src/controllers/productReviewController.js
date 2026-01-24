@@ -135,3 +135,23 @@ exports.deleteProductReview = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// GET ALL REVIEWS (GLOBAL) for Home Page Testimonials
+exports.getAllReviewsGlobal = async (req, res) => {
+  try {
+    const snapshot = await db
+      .collection("product_reviews")
+      .orderBy("createdAt", "desc")
+      .limit(20) // Get the 20 most recent to shuffle on frontend
+      .get();
+
+    const reviews = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.status(200).json(reviews);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

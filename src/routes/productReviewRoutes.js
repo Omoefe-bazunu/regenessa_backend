@@ -19,6 +19,12 @@ router.post(
   reviewController.addProductReview,
 );
 
+// GET all reviews globally (Add this line)
+router.get("/product/all", reviewController.getAllReviewsGlobal);
+
+// GET reviews for a product
+router.get("/product/:productId", reviewController.getProductReviews);
+
 // UPDATE a review
 router.put("/:reviewId", verifyToken, reviewController.updateProductReview);
 
