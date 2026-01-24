@@ -139,11 +139,16 @@ exports.deleteProductReview = async (req, res) => {
 // GET ALL REVIEWS (GLOBAL) for Home Page Testimonials
 exports.getAllReviewsGlobal = async (req, res) => {
   try {
-    const snapshot = await db
-      .collection("product_reviews")
-      .orderBy("createdAt", "desc")
-      .limit(20) // Get the 20 most recent to shuffle on frontend
-      .get();
+    // 1. Log the Project ID being used by the Admin SDK
+    console.log("--- DEBUG START ---");
+    console.log("Firebase Project ID in use:", db.projectId || "Not Set");
+
+    // 2. Fetch the collection
+    const snapshot = await db.collection("product_reviews").get();
+
+    // 3. Log the result size
+    console.log("Count found in product_reviews:", snapshot.size);
+    console.log("--- DEBUG END ---");
 
     const reviews = snapshot.docs.map((doc) => ({
       id: doc.id,
@@ -152,6 +157,7 @@ exports.getAllReviewsGlobal = async (req, res) => {
 
     res.status(200).json(reviews);
   } catch (err) {
+    console.error("DEBUG ERROR:", err.message);
     res.status(500).json({ error: err.message });
   }
 };

@@ -9,7 +9,11 @@ router.use((req, res, next) => {
   next();
 });
 
-// GET reviews for a product
+// IMPORTANT: More specific routes must come BEFORE parameterized routes
+// GET all reviews globally - MUST be before :productId route
+router.get("/product/all", reviewController.getAllReviewsGlobal);
+
+// GET reviews for a specific product
 router.get("/product/:productId", reviewController.getProductReviews);
 
 // POST a new review
@@ -18,12 +22,6 @@ router.post(
   verifyToken,
   reviewController.addProductReview,
 );
-
-// GET all reviews globally (Add this line)
-router.get("/product/all", reviewController.getAllReviewsGlobal);
-
-// GET reviews for a product
-router.get("/product/:productId", reviewController.getProductReviews);
 
 // UPDATE a review
 router.put("/:reviewId", verifyToken, reviewController.updateProductReview);
