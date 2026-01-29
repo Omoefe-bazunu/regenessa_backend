@@ -30,32 +30,44 @@ exports.createProduct = async (req, res) => {
       status,
     } = req.body;
 
+    // Validate required fields
+    if (!name || !price) {
+      return res.status(400).json({ error: "Name and price are required" });
+    }
+
     // Handle multiple file uploads from req.files
-    const mainImageUrl = req.files["mainImage"]
-      ? await uploadToStorage(req.files["mainImage"][0])
-      : "";
-    const extraImage1 = req.files["extraImage1"]
-      ? await uploadToStorage(req.files["extraImage1"][0])
-      : "";
-    const extraImage2 = req.files["extraImage2"]
-      ? await uploadToStorage(req.files["extraImage2"][0])
-      : "";
-    const videoUrl = req.files["video"]
-      ? await uploadToStorage(req.files["video"][0], "videos")
-      : "";
+    let mainImageUrl = "";
+    let extraImage1Url = "";
+    let extraImage2Url = "";
+    let videoUrl = "";
+
+    if (req.files) {
+      if (req.files["mainImage"] && req.files["mainImage"][0]) {
+        mainImageUrl = await uploadToStorage(req.files["mainImage"][0]);
+      }
+      if (req.files["extraImage1"] && req.files["extraImage1"][0]) {
+        extraImage1Url = await uploadToStorage(req.files["extraImage1"][0]);
+      }
+      if (req.files["extraImage2"] && req.files["extraImage2"][0]) {
+        extraImage2Url = await uploadToStorage(req.files["extraImage2"][0]);
+      }
+      if (req.files["video"] && req.files["video"][0]) {
+        videoUrl = await uploadToStorage(req.files["video"][0], "videos");
+      }
+    }
 
     const newProduct = {
       name,
-      category,
-      price: Number(price),
-      unit,
+      category: category || "",
+      price: Number(price) || 0,
+      unit: unit || "bag",
       stock: stock ? Number(stock) : 0,
-      moq: Number(moq) || 1, // New Field
-      locations: locations || "Nationwide", // New Field
-      description,
-      imageUrl: mainImageUrl, // Keeping this as primary for backward compatibility
-      gallery: [extraImage1, extraImage2].filter(Boolean), // Array for extra images
-      videoUrl, // New Field
+      moq: moq ? Number(moq) : 1,
+      locations: locations || "Nationwide",
+      description: description || "",
+      imageUrl: mainImageUrl,
+      gallery: [extraImage1Url, extraImage2Url].filter(Boolean),
+      videoUrl,
       status: status || "active",
       reviewCount: 0,
       avgRating: 0,
@@ -79,7 +91,9 @@ exports.getAllProducts = async (req, res) => {
     const { category } = req.query;
     let query = db.collection("products");
 
-    if (category) query = query.where("category", "==", category);
+    if (category) {
+      query = query.where("category", "==", category);
+    }
 
     const snapshot = await query.orderBy("createdAt", "desc").get();
     const products = snapshot.docs.map((doc) => ({
@@ -89,6 +103,7 @@ exports.getAllProducts = async (req, res) => {
 
     res.status(200).json(products);
   } catch (error) {
+    console.error("Get products error:", error);
     res
       .status(500)
       .json({ error: "Failed to fetch products: " + error.message });
@@ -99,43 +114,75 @@ exports.getAllProducts = async (req, res) => {
 exports.updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = { ...req.body };
+
+    // Get current product data first
+    const productRef = db.collection("products").doc(id);
+    const currentDoc = await productRef.get();
+
+    if (!currentDoc.exists) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    const currentData = currentDoc.data();
+    const updates = {};
+
+    // Only update fields that are provided
+    if (req.body.name !== undefined) updates.name = req.body.name;
+    if (req.body.category !== undefined) updates.category = req.body.category;
+    if (req.body.price !== undefined) updates.price = Number(req.body.price);
+    if (req.body.unit !== undefined) updates.unit = req.body.unit;
+    if (req.body.stock !== undefined) updates.stock = Number(req.body.stock);
+    if (req.body.moq !== undefined) updates.moq = Number(req.body.moq);
+    if (req.body.locations !== undefined)
+      updates.locations = req.body.locations;
+    if (req.body.description !== undefined)
+      updates.description = req.body.description;
+    if (req.body.status !== undefined) updates.status = req.body.status;
 
     // Handle new media uploads if provided
     if (req.files) {
-      if (req.files["mainImage"])
+      // Update main image
+      if (req.files["mainImage"] && req.files["mainImage"][0]) {
         updates.imageUrl = await uploadToStorage(req.files["mainImage"][0]);
+      }
 
-      // Update gallery if new extras are provided
-      const currentDoc = await db.collection("products").doc(id).get();
-      const currentData = currentDoc.data();
+      // Update gallery images
       let gallery = currentData.gallery || [];
 
-      if (req.files["extraImage1"])
-        gallery[0] = await uploadToStorage(req.files["extraImage1"][0]);
-      if (req.files["extraImage2"])
-        gallery[1] = await uploadToStorage(req.files["extraImage2"][0]);
+      if (req.files["extraImage1"] && req.files["extraImage1"][0]) {
+        const url = await uploadToStorage(req.files["extraImage1"][0]);
+        gallery[0] = url;
+      }
+
+      if (req.files["extraImage2"] && req.files["extraImage2"][0]) {
+        const url = await uploadToStorage(req.files["extraImage2"][0]);
+        gallery[1] = url;
+      }
 
       updates.gallery = gallery.filter(Boolean);
-      if (req.files["video"])
+
+      // Update video
+      if (req.files["video"] && req.files["video"][0]) {
         updates.videoUrl = await uploadToStorage(
           req.files["video"][0],
           "videos",
         );
+      }
     }
-
-    // Ensure numbers are stored as numbers
-    if (updates.price) updates.price = Number(updates.price);
-    if (updates.stock) updates.stock = Number(updates.stock);
-    if (updates.moq) updates.moq = Number(updates.moq);
 
     updates.updatedAt = new Date().toISOString();
 
-    const productRef = db.collection("products").doc(id);
     await productRef.update(updates);
 
-    res.status(200).json({ message: "Product updated successfully", id });
+    // Get updated product
+    const updatedDoc = await productRef.get();
+    res.status(200).json({
+      message: "Product updated successfully",
+      id,
+      product: { id: updatedDoc.id, ...updatedDoc.data() },
+    });
   } catch (error) {
+    console.error("Update product error:", error);
     res.status(500).json({ error: "Update failed: " + error.message });
   }
 };
@@ -152,6 +199,7 @@ exports.getSingleProduct = async (req, res) => {
 
     res.status(200).json({ id: doc.id, ...doc.data() });
   } catch (error) {
+    console.error("Get single product error:", error);
     res.status(500).json({ error: "Error fetching product: " + error.message });
   }
 };
@@ -167,17 +215,41 @@ exports.deleteProduct = async (req, res) => {
       return res.status(404).json({ error: "Product not found" });
     }
 
-    // Optional: Delete the image from storage
+    // Optional: Delete the images from storage
     const productData = doc.data();
+
+    // Delete main image
     if (productData.imageUrl) {
       try {
-        // Extract filename from URL
         const urlParts = productData.imageUrl.split("/");
-        const fileName = urlParts[urlParts.length - 1];
+        const fileName = decodeURIComponent(urlParts[urlParts.length - 1]);
         await bucket.file(`products/${fileName}`).delete();
       } catch (err) {
-        console.log("Could not delete image:", err.message);
-        // Continue with product deletion even if image deletion fails
+        console.log("Could not delete main image:", err.message);
+      }
+    }
+
+    // Delete gallery images
+    if (productData.gallery && productData.gallery.length > 0) {
+      for (const imageUrl of productData.gallery) {
+        try {
+          const urlParts = imageUrl.split("/");
+          const fileName = decodeURIComponent(urlParts[urlParts.length - 1]);
+          await bucket.file(`products/${fileName}`).delete();
+        } catch (err) {
+          console.log("Could not delete gallery image:", err.message);
+        }
+      }
+    }
+
+    // Delete video
+    if (productData.videoUrl) {
+      try {
+        const urlParts = productData.videoUrl.split("/");
+        const fileName = decodeURIComponent(urlParts[urlParts.length - 1]);
+        await bucket.file(`videos/${fileName}`).delete();
+      } catch (err) {
+        console.log("Could not delete video:", err.message);
       }
     }
 
@@ -188,3 +260,5 @@ exports.deleteProduct = async (req, res) => {
     res.status(500).json({ error: "Delete failed: " + error.message });
   }
 };
+
+module.exports = exports;
