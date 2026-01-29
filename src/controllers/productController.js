@@ -1,32 +1,48 @@
 const { db, bucket } = require("../config/firebase");
 
+// Helper function to handle Firebase Storage uploads
+const uploadToStorage = async (file, folder = "products") => {
+  if (!file) return "";
+  const fileName = `${Date.now()}_${file.originalname.replace(/\s+/g, "_")}`;
+  const filePath = `${folder}/${fileName}`;
+  const blob = bucket.file(filePath);
+
+  await blob.save(file.buffer, {
+    metadata: { contentType: file.mimetype },
+  });
+
+  await blob.makePublic();
+  return `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+};
+
 // 1. CREATE PRODUCT
 exports.createProduct = async (req, res) => {
   try {
-    const { name, category, price, unit, stock, description, status } =
-      req.body;
+    const {
+      name,
+      category,
+      price,
+      unit,
+      stock,
+      moq,
+      locations,
+      description,
+      status,
+    } = req.body;
 
-    let imageUrl = "";
-
-    // Handle file upload if present
-    if (req.file) {
-      const fileName = `${Date.now()}_${req.file.originalname}`;
-      const filePath = `products/${fileName}`;
-      const file = bucket.file(filePath);
-
-      // Upload the file
-      await file.save(req.file.buffer, {
-        metadata: {
-          contentType: req.file.mimetype,
-        },
-      });
-
-      // Make file public
-      await file.makePublic();
-
-      // Get public URL
-      imageUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
-    }
+    // Handle multiple file uploads from req.files
+    const mainImageUrl = req.files["mainImage"]
+      ? await uploadToStorage(req.files["mainImage"][0])
+      : "";
+    const extraImage1 = req.files["extraImage1"]
+      ? await uploadToStorage(req.files["extraImage1"][0])
+      : "";
+    const extraImage2 = req.files["extraImage2"]
+      ? await uploadToStorage(req.files["extraImage2"][0])
+      : "";
+    const videoUrl = req.files["video"]
+      ? await uploadToStorage(req.files["video"][0], "videos")
+      : "";
 
     const newProduct = {
       name,
@@ -34,8 +50,12 @@ exports.createProduct = async (req, res) => {
       price: Number(price),
       unit,
       stock: stock ? Number(stock) : 0,
+      moq: Number(moq) || 1, // New Field
+      locations: locations || "Nationwide", // New Field
       description,
-      imageUrl,
+      imageUrl: mainImageUrl, // Keeping this as primary for backward compatibility
+      gallery: [extraImage1, extraImage2].filter(Boolean), // Array for extra images
+      videoUrl, // New Field
       status: status || "active",
       reviewCount: 0,
       avgRating: 0,
@@ -79,50 +99,43 @@ exports.getAllProducts = async (req, res) => {
 exports.updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = { ...req.body };
 
-    // Handle new image upload if present
-    if (req.file) {
-      const fileName = `${Date.now()}_${req.file.originalname}`;
-      const filePath = `products/${fileName}`;
-      const file = bucket.file(filePath);
+    // Handle new media uploads if provided
+    if (req.files) {
+      if (req.files["mainImage"])
+        updates.imageUrl = await uploadToStorage(req.files["mainImage"][0]);
 
-      await file.save(req.file.buffer, {
-        metadata: {
-          contentType: req.file.mimetype,
-        },
-      });
+      // Update gallery if new extras are provided
+      const currentDoc = await db.collection("products").doc(id).get();
+      const currentData = currentDoc.data();
+      let gallery = currentData.gallery || [];
 
-      await file.makePublic();
-      updates.imageUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+      if (req.files["extraImage1"])
+        gallery[0] = await uploadToStorage(req.files["extraImage1"][0]);
+      if (req.files["extraImage2"])
+        gallery[1] = await uploadToStorage(req.files["extraImage2"][0]);
 
-      // Optional: Delete old image
-      // const productRef = db.collection("products").doc(id);
-      // const doc = await productRef.get();
-      // if (doc.exists && doc.data().imageUrl) {
-      //   const oldFileName = doc.data().imageUrl.split('/').pop();
-      //   await bucket.file(`products/${oldFileName}`).delete().catch(() => {});
-      // }
+      updates.gallery = gallery.filter(Boolean);
+      if (req.files["video"])
+        updates.videoUrl = await uploadToStorage(
+          req.files["video"][0],
+          "videos",
+        );
     }
 
-    delete updates.subCategory;
-
+    // Ensure numbers are stored as numbers
     if (updates.price) updates.price = Number(updates.price);
     if (updates.stock) updates.stock = Number(updates.stock);
+    if (updates.moq) updates.moq = Number(updates.moq);
 
     updates.updatedAt = new Date().toISOString();
 
     const productRef = db.collection("products").doc(id);
-    const doc = await productRef.get();
-
-    if (!doc.exists) {
-      return res.status(404).json({ error: "Product not found" });
-    }
-
     await productRef.update(updates);
+
     res.status(200).json({ message: "Product updated successfully", id });
   } catch (error) {
-    console.error("Update product error:", error);
     res.status(500).json({ error: "Update failed: " + error.message });
   }
 };
