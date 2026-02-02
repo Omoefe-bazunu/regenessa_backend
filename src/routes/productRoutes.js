@@ -2,9 +2,13 @@ const express = require("express");
 const router = express.Router();
 const productController = require("../controllers/productController");
 const { verifyToken } = require("../middleware/authMiddleware");
-const upload = require("../middleware/upload"); // Ensure this uses multer.memoryStorage()
+const upload = require("../middleware/upload");
 
-// Define the multi-field upload configuration
+/**
+ * Regenessa Product Media Configuration
+ * Handles the main product shot, gallery images for supplements,
+ * and optional video demonstrations.
+ */
 const productMediaUpload = upload.fields([
   { name: "mainImage", maxCount: 1 },
   { name: "extraImage1", maxCount: 1 },
@@ -12,22 +16,23 @@ const productMediaUpload = upload.fields([
   { name: "video", maxCount: 1 },
 ]);
 
-// Public Routes
+// --- Public Routes ---
+// Allow customers to browse the Products
 router.get("/", productController.getAllProducts);
 router.get("/:id", productController.getSingleProduct);
 
-// Protected Admin Routes
+// --- Protected Admin Routes ---
 router.post(
   "/",
   verifyToken,
-  productMediaUpload, // Use the multi-field middleware
+  productMediaUpload,
   productController.createProduct,
 );
 
 router.put(
   "/:id",
   verifyToken,
-  productMediaUpload, // Use the multi-field middleware
+  productMediaUpload,
   productController.updateProduct,
 );
 

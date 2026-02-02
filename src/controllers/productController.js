@@ -1,73 +1,80 @@
 const { db, bucket } = require("../config/firebase");
 
-// Helper function to handle Firebase Storage uploads
+// Helper function for Firebase Storage
 const uploadToStorage = async (file, folder = "products") => {
   if (!file) return "";
   const fileName = `${Date.now()}_${file.originalname.replace(/\s+/g, "_")}`;
-  const filePath = `${folder}/${fileName}`;
-  const blob = bucket.file(filePath);
+  const fileRef = bucket.file(`regenessa/${folder}/${fileName}`);
 
-  await blob.save(file.buffer, {
+  await fileRef.save(file.buffer, {
     metadata: { contentType: file.mimetype },
   });
 
-  await blob.makePublic();
-  return `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+  await fileRef.makePublic();
+  return `https://storage.googleapis.com/${bucket.name}/regenessa/${folder}/${fileName}`;
 };
 
 // 1. CREATE PRODUCT
-exports.createProduct = async (req, res) => {
+const createProduct = async (req, res) => {
   try {
     const {
       name,
       category,
       price,
-      unit,
-      stock,
-      moq,
-      locations,
+      shortDescription,
       description,
+      benefits,
+      targetAilments,
+      stockCount,
+      featured,
       status,
     } = req.body;
 
-    // Validate required fields
     if (!name || !price) {
       return res.status(400).json({ error: "Name and price are required" });
     }
 
-    // Handle multiple file uploads from req.files
     let mainImageUrl = "";
-    let extraImage1Url = "";
-    let extraImage2Url = "";
-    let videoUrl = "";
+    let galleryUrls = [];
 
     if (req.files) {
       if (req.files["mainImage"] && req.files["mainImage"][0]) {
-        mainImageUrl = await uploadToStorage(req.files["mainImage"][0]);
+        mainImageUrl = await uploadToStorage(
+          req.files["mainImage"][0],
+          "products",
+        );
       }
-      if (req.files["extraImage1"] && req.files["extraImage1"][0]) {
-        extraImage1Url = await uploadToStorage(req.files["extraImage1"][0]);
-      }
-      if (req.files["extraImage2"] && req.files["extraImage2"][0]) {
-        extraImage2Url = await uploadToStorage(req.files["extraImage2"][0]);
-      }
-      if (req.files["video"] && req.files["video"][0]) {
-        videoUrl = await uploadToStorage(req.files["video"][0], "videos");
+
+      // Explicitly check for your route field names: extraImage1 and extraImage2
+      const galleryFields = ["extraImage1", "extraImage2"];
+      for (const field of galleryFields) {
+        if (req.files[field] && req.files[field][0]) {
+          const url = await uploadToStorage(req.files[field][0], "products");
+          galleryUrls.push(url);
+        }
       }
     }
 
     const newProduct = {
       name,
-      category: category || "",
+      category: category || "Stem Cell Supplements",
       price: Number(price) || 0,
-      unit: unit || "bag",
-      stock: stock ? Number(stock) : 0,
-      moq: moq ? Number(moq) : 1,
-      locations: locations || "Nationwide",
+      shortDescription: shortDescription || "",
       description: description || "",
+      benefits: Array.isArray(benefits)
+        ? benefits
+        : benefits
+          ? benefits.split(",")
+          : [],
+      targetAilments: Array.isArray(targetAilments)
+        ? targetAilments
+        : targetAilments
+          ? targetAilments.split(",")
+          : [],
       imageUrl: mainImageUrl,
-      gallery: [extraImage1Url, extraImage2Url].filter(Boolean),
-      videoUrl,
+      gallery: galleryUrls,
+      stockCount: Number(stockCount) || 0,
+      featured: featured === "true" || featured === true,
       status: status || "active",
       reviewCount: 0,
       avgRating: 0,
@@ -78,7 +85,6 @@ exports.createProduct = async (req, res) => {
     const docRef = await db.collection("products").add(newProduct);
     res.status(201).json({ id: docRef.id, ...newProduct });
   } catch (error) {
-    console.error("Create product error:", error);
     res
       .status(500)
       .json({ error: "Failed to create product: " + error.message });
@@ -86,14 +92,13 @@ exports.createProduct = async (req, res) => {
 };
 
 // 2. GET ALL PRODUCTS
-exports.getAllProducts = async (req, res) => {
+const getAllProducts = async (req, res) => {
   try {
-    const { category } = req.query;
+    const { category, featured } = req.query;
     let query = db.collection("products");
 
-    if (category) {
-      query = query.where("category", "==", category);
-    }
+    if (category) query = query.where("category", "==", category);
+    if (featured) query = query.where("featured", "==", featured === "true");
 
     const snapshot = await query.orderBy("createdAt", "desc").get();
     const products = snapshot.docs.map((doc) => ({
@@ -103,92 +108,14 @@ exports.getAllProducts = async (req, res) => {
 
     res.status(200).json(products);
   } catch (error) {
-    console.error("Get products error:", error);
     res
       .status(500)
       .json({ error: "Failed to fetch products: " + error.message });
   }
 };
 
-// 3. UPDATE/EDIT PRODUCT
-exports.updateProduct = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Get current product data first
-    const productRef = db.collection("products").doc(id);
-    const currentDoc = await productRef.get();
-
-    if (!currentDoc.exists) {
-      return res.status(404).json({ error: "Product not found" });
-    }
-
-    const currentData = currentDoc.data();
-    const updates = {};
-
-    // Only update fields that are provided
-    if (req.body.name !== undefined) updates.name = req.body.name;
-    if (req.body.category !== undefined) updates.category = req.body.category;
-    if (req.body.price !== undefined) updates.price = Number(req.body.price);
-    if (req.body.unit !== undefined) updates.unit = req.body.unit;
-    if (req.body.stock !== undefined) updates.stock = Number(req.body.stock);
-    if (req.body.moq !== undefined) updates.moq = Number(req.body.moq);
-    if (req.body.locations !== undefined)
-      updates.locations = req.body.locations;
-    if (req.body.description !== undefined)
-      updates.description = req.body.description;
-    if (req.body.status !== undefined) updates.status = req.body.status;
-
-    // Handle new media uploads if provided
-    if (req.files) {
-      // Update main image
-      if (req.files["mainImage"] && req.files["mainImage"][0]) {
-        updates.imageUrl = await uploadToStorage(req.files["mainImage"][0]);
-      }
-
-      // Update gallery images
-      let gallery = currentData.gallery || [];
-
-      if (req.files["extraImage1"] && req.files["extraImage1"][0]) {
-        const url = await uploadToStorage(req.files["extraImage1"][0]);
-        gallery[0] = url;
-      }
-
-      if (req.files["extraImage2"] && req.files["extraImage2"][0]) {
-        const url = await uploadToStorage(req.files["extraImage2"][0]);
-        gallery[1] = url;
-      }
-
-      updates.gallery = gallery.filter(Boolean);
-
-      // Update video
-      if (req.files["video"] && req.files["video"][0]) {
-        updates.videoUrl = await uploadToStorage(
-          req.files["video"][0],
-          "videos",
-        );
-      }
-    }
-
-    updates.updatedAt = new Date().toISOString();
-
-    await productRef.update(updates);
-
-    // Get updated product
-    const updatedDoc = await productRef.get();
-    res.status(200).json({
-      message: "Product updated successfully",
-      id,
-      product: { id: updatedDoc.id, ...updatedDoc.data() },
-    });
-  } catch (error) {
-    console.error("Update product error:", error);
-    res.status(500).json({ error: "Update failed: " + error.message });
-  }
-};
-
-// 4. GET SINGLE PRODUCT
-exports.getSingleProduct = async (req, res) => {
+// 3. GET SINGLE PRODUCT (The missing function)
+const getSingleProduct = async (req, res) => {
   try {
     const { id } = req.params;
     const doc = await db.collection("products").doc(id).get();
@@ -199,66 +126,65 @@ exports.getSingleProduct = async (req, res) => {
 
     res.status(200).json({ id: doc.id, ...doc.data() });
   } catch (error) {
-    console.error("Get single product error:", error);
     res.status(500).json({ error: "Error fetching product: " + error.message });
   }
 };
 
-// 5. DELETE PRODUCT
-exports.deleteProduct = async (req, res) => {
+// 4. UPDATE PRODUCT
+const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
     const productRef = db.collection("products").doc(id);
-    const doc = await productRef.get();
+    const currentDoc = await productRef.get();
 
-    if (!doc.exists) {
+    if (!currentDoc.exists)
       return res.status(404).json({ error: "Product not found" });
+
+    const updates = { ...req.body };
+
+    if (updates.price) updates.price = Number(updates.price);
+    if (updates.stockCount) updates.stockCount = Number(updates.stockCount);
+    if (updates.featured)
+      updates.featured =
+        updates.featured === "true" || updates.featured === true;
+
+    if (updates.benefits && !Array.isArray(updates.benefits))
+      updates.benefits = updates.benefits.split(",");
+    if (updates.targetAilments && !Array.isArray(updates.targetAilments))
+      updates.targetAilments = updates.targetAilments.split(",");
+
+    if (req.files && req.files["mainImage"]) {
+      updates.imageUrl = await uploadToStorage(
+        req.files["mainImage"][0],
+        "products",
+      );
     }
 
-    // Optional: Delete the images from storage
-    const productData = doc.data();
+    updates.updatedAt = new Date().toISOString();
+    await productRef.update(updates);
 
-    // Delete main image
-    if (productData.imageUrl) {
-      try {
-        const urlParts = productData.imageUrl.split("/");
-        const fileName = decodeURIComponent(urlParts[urlParts.length - 1]);
-        await bucket.file(`products/${fileName}`).delete();
-      } catch (err) {
-        console.log("Could not delete main image:", err.message);
-      }
-    }
+    res.status(200).json({ message: "Product updated successfully", id });
+  } catch (error) {
+    res.status(500).json({ error: "Update failed: " + error.message });
+  }
+};
 
-    // Delete gallery images
-    if (productData.gallery && productData.gallery.length > 0) {
-      for (const imageUrl of productData.gallery) {
-        try {
-          const urlParts = imageUrl.split("/");
-          const fileName = decodeURIComponent(urlParts[urlParts.length - 1]);
-          await bucket.file(`products/${fileName}`).delete();
-        } catch (err) {
-          console.log("Could not delete gallery image:", err.message);
-        }
-      }
-    }
-
-    // Delete video
-    if (productData.videoUrl) {
-      try {
-        const urlParts = productData.videoUrl.split("/");
-        const fileName = decodeURIComponent(urlParts[urlParts.length - 1]);
-        await bucket.file(`videos/${fileName}`).delete();
-      } catch (err) {
-        console.log("Could not delete video:", err.message);
-      }
-    }
-
-    await productRef.delete();
+// 5. DELETE PRODUCT
+const deleteProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.collection("products").doc(id).delete();
     res.status(200).json({ message: "Product deleted successfully" });
   } catch (error) {
-    console.error("Delete product error:", error);
     res.status(500).json({ error: "Delete failed: " + error.message });
   }
 };
 
-module.exports = exports;
+// Clean Export Object
+module.exports = {
+  createProduct,
+  getAllProducts,
+  getSingleProduct,
+  updateProduct,
+  deleteProduct,
+};

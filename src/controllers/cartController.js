@@ -16,39 +16,44 @@ exports.getCart = async (req, res) => {
 exports.addToCart = async (req, res) => {
   try {
     const { productId, name, price, quantity, imageUrl, unit } = req.body;
-    const userId = req.user.userId;
-    const cartRef = db.collection("carts").doc(userId);
 
+    const userId = req.user.userId || req.user.id;
+
+    if (!userId)
+      return res.status(401).json({ error: "User ID not found in token" });
+
+    const cartRef = db.collection("carts").doc(userId);
     const doc = await cartRef.get();
     let items = [];
 
+    const cleanPrice = Number(price) || 0;
+    const cleanQty = Number(quantity) || 1;
+
     if (doc.exists) {
-      items = doc.data().items;
+      items = doc.data().items || [];
       const itemIndex = items.findIndex((item) => item.productId === productId);
 
       if (itemIndex > -1) {
-        // If item exists, update quantity
-        items[itemIndex].quantity += Number(quantity);
+        items[itemIndex].quantity += cleanQty;
       } else {
-        // Add new item
         items.push({
           productId,
-          name,
-          price: Number(price),
-          quantity: Number(quantity),
-          imageUrl,
-          unit,
+          name: name || "Unknown Supplement",
+          price: cleanPrice,
+          quantity: cleanQty,
+          imageUrl: imageUrl || "",
+          unit: unit || "bottle",
         });
       }
     } else {
       items = [
         {
           productId,
-          name,
-          price: Number(price),
-          quantity: Number(quantity),
-          imageUrl,
-          unit,
+          name: name || "Unknown Supplement",
+          price: cleanPrice,
+          quantity: cleanQty,
+          imageUrl: imageUrl || "",
+          unit: unit || "bottle",
         },
       ];
     }
@@ -58,10 +63,19 @@ exports.addToCart = async (req, res) => {
       0,
     );
 
-    await cartRef.set({ items, total, updatedAt: new Date().toISOString() });
-    res.status(200).json({ message: "Cart updated", items });
+    await cartRef.set(
+      {
+        items,
+        total: Number(total.toFixed(2)),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+
+    res.status(200).json({ message: "Cart updated", items, total });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("CART_ERROR:", err.message);
+    res.status(500).json({ error: "Failed to update cart: " + err.message });
   }
 };
 

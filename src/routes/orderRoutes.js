@@ -3,15 +3,16 @@ const router = express.Router();
 const orderController = require("../controllers/orderController");
 const { verifyToken } = require("../middleware/authMiddleware");
 
-router.use(verifyToken);
+// Public/User Routes
+router.get("/my-orders", verifyToken, orderController.getUserOrders);
+router.post("/", verifyToken, orderController.submitOrder);
 
-// Customer Routes
-router.post("/checkout", orderController.submitOrder);
-router.get("/my-orders", orderController.getUserOrders);
-router.get("/:orderId", orderController.getSingleOrder);
-
-// Admin Routes (Dashboard)
-router.get("/admin/all", orderController.getAllOrders);
-router.put("/admin/status/:orderId", orderController.updateOrderStatus);
+// Admin Routes
+router.get("/admin/all", verifyToken, orderController.getAllOrders);
+router.put(
+  "/admin/status/:orderId",
+  verifyToken,
+  orderController.updateOrderStatus,
+);
 
 module.exports = router;

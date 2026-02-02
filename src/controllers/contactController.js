@@ -4,18 +4,17 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 exports.submitInquiry = async (req, res) => {
   try {
-    const { businessName, name, email, message } = req.body;
+    const { name, phone, email, message } = req.body;
 
-    // Validation
-    if (!businessName || !name || !email || !message) {
+    if (!name || !email || !message) {
       return res
         .status(400)
         .json({ error: "Please provide all required fields" });
     }
 
     const inquiryData = {
-      businessName,
       name,
+      phone: phone || "",
       email,
       message,
       status: "unread",
@@ -27,17 +26,17 @@ exports.submitInquiry = async (req, res) => {
 
     // 2. Email Notification to Admin via Resend
     await resend.emails.send({
-      from: "Clean Foods <info@higher.com.ng>",
+      from: "Regenessa <info@higher.com.ng>",
       to: "raniem57@gmail.com",
-      subject: `New Business Inquiry: ${businessName}`,
+      subject: `New Contact Inquiry: ${name}`,
       html: `
         <div style="font-family: sans-serif; color: #1b4332; border: 1px solid #e5e7eb; padding: 25px; border-radius: 20px;">
-          <h2 style="color: #2d6a4f; margin-top: 0;">New Inquiry Received!</h2>
-          <p><strong>Business:</strong> ${businessName}</p>
+          <h2 style="color: #2d6a4f; margin-top: 0;">New Contact Inquiry Received!</h2>
           <p><strong>Contact Name:</strong> ${name}</p>
+          <p><strong>Phone Number:</strong> ${phone || "Not provided"}</p>
           <p><strong>Email Address:</strong> ${email}</p>
           <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-          <p><strong>Requirements/Message:</strong></p>
+          <p><strong>Message:</strong></p>
           <div style="background-color: #f8f9fa; padding: 15px; border-radius: 10px;">
             ${message}
           </div>

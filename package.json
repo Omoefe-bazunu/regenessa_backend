@@ -1,28 +1,43 @@
 {
-  "name": "cleanfoods-backend",
+  "name": "regenessa-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Backend API for Regenessa regenerative lifestyle wellness",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Omoefe-bazunu/regenessa.git"
+  },
+  "keywords": [
+    "wellness",
+    "stemcell",
+    "regenessa",
+    "longevity"
+  ],
+  "author": "Emuovbe Patience",
   "license": "ISC",
   "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Omoefe-bazunu/regenessa/issues"
+  },
+  "homepage": "https://github.com/Omoefe-bazunu/regenessa#readme",
   "dependencies": {
+    "axios": "^1.13.4",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "firebase-admin": "^13.6.0",
+    "firebase-admin": "^12.7.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
     "node-fetch": "^3.3.2",
-    "resend": "^6.8.0"
+    "resend": "^6.9.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
