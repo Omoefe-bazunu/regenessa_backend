@@ -233,10 +233,31 @@ const deleteProduct = async (req, res) => {
   }
 };
 
+const getProductsList = async (req, res) => {
+  try {
+    const snapshot = await db
+      .collection("products")
+      .orderBy("name", "asc")
+      .get();
+
+    const products = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      name: doc.data().name,
+    }));
+
+    res.status(200).json(products);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Failed to fetch products list: " + error.message });
+  }
+};
+
 module.exports = {
   createProduct,
   getAllProducts,
   getSingleProduct,
   updateProduct,
   deleteProduct,
+  getProductsList,
 };

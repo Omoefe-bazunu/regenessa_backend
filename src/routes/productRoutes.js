@@ -3,6 +3,7 @@ const router = express.Router();
 const productController = require("../controllers/productController");
 const { verifyToken } = require("../middleware/authMiddleware");
 const upload = require("../middleware/upload");
+const { logProductView } = require("../middleware/analyticsMiddleware");
 
 /**
  * Regenessa Product Media Configuration
@@ -18,8 +19,9 @@ const productMediaUpload = upload.fields([
 
 // --- Public Routes ---
 // Allow customers to browse the Products
+router.get("/list", productController.getProductsList);
 router.get("/", productController.getAllProducts);
-router.get("/:id", productController.getSingleProduct);
+router.get("/:id", logProductView, productController.getSingleProduct);
 
 // --- Protected Admin Routes ---
 router.post(
