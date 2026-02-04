@@ -36,8 +36,10 @@ const createProduct = async (req, res) => {
 
     let mainImageUrl = "";
     let galleryUrls = [];
+    let videoUrl = "";
 
     if (req.files) {
+      // Main Image
       if (req.files["mainImage"] && req.files["mainImage"][0]) {
         mainImageUrl = await uploadToStorage(
           req.files["mainImage"][0],
@@ -45,13 +47,21 @@ const createProduct = async (req, res) => {
         );
       }
 
-      // Explicitly check for your route field names: extraImage1 and extraImage2
+      // Extra Images (extraImage1 and extraImage2)
       const galleryFields = ["extraImage1", "extraImage2"];
       for (const field of galleryFields) {
         if (req.files[field] && req.files[field][0]) {
           const url = await uploadToStorage(req.files[field][0], "products");
           galleryUrls.push(url);
         }
+      }
+
+      // Video File
+      if (req.files["video"] && req.files["video"][0]) {
+        videoUrl = await uploadToStorage(
+          req.files["video"][0],
+          "products/videos",
+        );
       }
     }
 
@@ -64,18 +74,19 @@ const createProduct = async (req, res) => {
       benefits: Array.isArray(benefits)
         ? benefits
         : benefits
-          ? benefits.split(",")
+          ? benefits.split(",").map((b) => b.trim())
           : [],
       targetAilments: Array.isArray(targetAilments)
         ? targetAilments
         : targetAilments
-          ? targetAilments.split(",")
+          ? targetAilments.split(",").map((t) => t.trim())
           : [],
       imageUrl: mainImageUrl,
       gallery: galleryUrls,
+      videoUrl: videoUrl,
       stockCount: Number(stockCount) || 0,
       featured: featured === "true" || featured === true,
-      status: status || "active",
+      status: status || "In Stock",
       reviewCount: 0,
       avgRating: 0,
       createdAt: new Date().toISOString(),
@@ -114,7 +125,7 @@ const getAllProducts = async (req, res) => {
   }
 };
 
-// 3. GET SINGLE PRODUCT (The missing function)
+// 3. GET SINGLE PRODUCT
 const getSingleProduct = async (req, res) => {
   try {
     const { id } = req.params;
@@ -140,24 +151,66 @@ const updateProduct = async (req, res) => {
     if (!currentDoc.exists)
       return res.status(404).json({ error: "Product not found" });
 
+    const currentData = currentDoc.data();
     const updates = { ...req.body };
 
+    // Convert numeric fields
     if (updates.price) updates.price = Number(updates.price);
     if (updates.stockCount) updates.stockCount = Number(updates.stockCount);
     if (updates.featured)
       updates.featured =
         updates.featured === "true" || updates.featured === true;
 
+    // Convert comma-separated strings to arrays
     if (updates.benefits && !Array.isArray(updates.benefits))
-      updates.benefits = updates.benefits.split(",");
+      updates.benefits = updates.benefits.split(",").map((b) => b.trim());
     if (updates.targetAilments && !Array.isArray(updates.targetAilments))
-      updates.targetAilments = updates.targetAilments.split(",");
+      updates.targetAilments = updates.targetAilments
+        .split(",")
+        .map((t) => t.trim());
 
-    if (req.files && req.files["mainImage"]) {
-      updates.imageUrl = await uploadToStorage(
-        req.files["mainImage"][0],
-        "products",
-      );
+    // Handle file uploads
+    if (req.files) {
+      // Update main image
+      if (req.files["mainImage"] && req.files["mainImage"][0]) {
+        updates.imageUrl = await uploadToStorage(
+          req.files["mainImage"][0],
+          "products",
+        );
+      }
+
+      // Update gallery images
+      let galleryUrls = currentData.gallery || [];
+
+      if (req.files["extraImage1"] && req.files["extraImage1"][0]) {
+        const url = await uploadToStorage(
+          req.files["extraImage1"][0],
+          "products",
+        );
+        if (galleryUrls[0]) galleryUrls[0] = url;
+        else galleryUrls.push(url);
+      }
+
+      if (req.files["extraImage2"] && req.files["extraImage2"][0]) {
+        const url = await uploadToStorage(
+          req.files["extraImage2"][0],
+          "products",
+        );
+        if (galleryUrls[1]) galleryUrls[1] = url;
+        else galleryUrls.push(url);
+      }
+
+      if (galleryUrls.length > 0) {
+        updates.gallery = galleryUrls;
+      }
+
+      // Update video
+      if (req.files["video"] && req.files["video"][0]) {
+        updates.videoUrl = await uploadToStorage(
+          req.files["video"][0],
+          "products/videos",
+        );
+      }
     }
 
     updates.updatedAt = new Date().toISOString();
@@ -180,7 +233,6 @@ const deleteProduct = async (req, res) => {
   }
 };
 
-// Clean Export Object
 module.exports = {
   createProduct,
   getAllProducts,

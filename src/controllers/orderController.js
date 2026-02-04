@@ -1,28 +1,44 @@
 const { db } = require("../config/firebase");
-const { verifyPaystackPayment } = require("../utils/paystack");
+const { verifyPayment } = require("../utils/flutterwave");
 const { Resend } = require("resend");
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // 1. Submit Order
 const submitOrder = async (req, res) => {
   try {
-    const { items, totalAmount, shippingDetails, paystackReference } = req.body;
+    const { items, totalAmount, shippingDetails, transactionId } = req.body;
+    const existingOrder = await db
+      .collection("orders")
+      .where("transactionId", "==", transactionId)
+      .limit(1)
+      .get();
+
+    if (!existingOrder.empty) {
+      return res.status(200).json({
+        message: "Order already processed",
+        orderId: existingOrder.docs[0].id,
+      });
+    }
     const userId = req.user.userId;
 
     if (!items || items.length === 0)
       return res.status(400).json({ error: "Empty order" });
+    if (!transactionId)
+      return res.status(400).json({ error: "Transaction ID required" });
 
-    const paymentData = await verifyPaystackPayment(paystackReference);
-    if (!paymentData)
+    const paymentData = await verifyPayment(transactionId);
+    if (!paymentData || paymentData.amount < totalAmount) {
       return res.status(400).json({ error: "Payment verification failed" });
+    }
 
     const orderData = {
       userId,
       items,
       totalAmount: Number(totalAmount),
       shippingDetails,
-      paymentMethod: "Paystack",
-      paystackReference,
+      paymentMethod: "Flutterwave",
+      transactionId,
+      txRef: paymentData.tx_ref,
       status: "Processing",
       orderDate: new Date().toISOString(),
     };
@@ -30,21 +46,23 @@ const submitOrder = async (req, res) => {
     const orderRef = await db.collection("orders").add(orderData);
     await db.collection("carts").doc(userId).delete();
 
-    // Notify Regenessa Admin
+    // Admin Notification [cite: 14]
     await resend.emails.send({
       from: "Regenessa <info@regenessa.com>",
       to: "raniem57@gmail.com",
-      subject: `New Order #${orderRef.id.slice(0, 5)}`,
-      html: `<p>New order received for ${shippingDetails.fullName}. Total: ₦${totalAmount.toLocaleString()}</p>`,
+      subject: `New Order #${orderRef.id.slice(0, 8).toUpperCase()}`,
+      html: `<p>New clinical order received for ₦${totalAmount.toLocaleString()}</p>`,
     });
 
-    res.status(201).json({ message: "Order placed", orderId: orderRef.id });
+    res
+      .status(201)
+      .json({ message: "Order placed successfully", orderId: orderRef.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-// 2. Get User Orders
+// 2. User Order History
 const getUserOrders = async (req, res) => {
   try {
     const snapshot = await db
@@ -52,6 +70,7 @@ const getUserOrders = async (req, res) => {
       .where("userId", "==", req.user.userId)
       .orderBy("orderDate", "desc")
       .get();
+
     res
       .status(200)
       .json(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
@@ -60,15 +79,15 @@ const getUserOrders = async (req, res) => {
   }
 };
 
-// 3. Admin: Get All Orders
+// 3. ADMIN: Get All Orders (Check Removed)
 const getAllOrders = async (req, res) => {
   try {
-    if (req.user.role !== "admin")
-      return res.status(403).json({ error: "Admin only" });
+    // Permission checks removed for direct access
     const snapshot = await db
       .collection("orders")
       .orderBy("orderDate", "desc")
       .get();
+
     res
       .status(200)
       .json(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
@@ -77,25 +96,24 @@ const getAllOrders = async (req, res) => {
   }
 };
 
-// 4. Admin: Update Status
+// 4. ADMIN: Update Status (Check Removed)
 const updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status } = req.body;
-    if (req.user.role !== "admin")
-      return res.status(403).json({ error: "Admin only" });
 
+    // Permission checks removed for direct access
     await db
       .collection("orders")
       .doc(orderId)
       .update({ status, updatedAt: new Date().toISOString() });
-    res.status(200).json({ message: `Order status updated to ${status}` });
+
+    res.status(200).json({ message: `Registry updated: ${status}` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-// EXPORT ALL FUNCTIONS
 module.exports = {
   submitOrder,
   getUserOrders,
