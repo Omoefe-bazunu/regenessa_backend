@@ -60,12 +60,13 @@ const logActivity = async (req, res) => {
     const { productId, productName } = req.body;
     if (!productId) return res.status(400).send("Product ID required");
 
-    // 1. Create a unique key for TODAY (e.g., "prod123_2026-02-04")
+    // Create unique ID: productId + today's date
     const today = new Date().toISOString().split("T")[0];
     const uniqueLogId = `${productId}_${today}`;
 
-    // 2. Use .set() with { merge: true } instead of .add()
-    // This ensures that if the log exists, it just updates instead of duplicating.
+    console.log("Logging with unique ID:", uniqueLogId); // DEBUG LINE
+
+    // Use set with merge to prevent duplicates
     await db
       .collection("product_analytics")
       .doc(uniqueLogId)
@@ -74,13 +75,14 @@ const logActivity = async (req, res) => {
           type: "view",
           productId,
           productName: productName || "Unknown Product",
-          timestamp: new Date().toISOString(), // This will update to the latest view time
+          timestamp: new Date().toISOString(),
         },
-        { merge: true },
+        { merge: true }, // This prevents creating new docs
       );
 
     res.status(200).send();
   } catch (error) {
+    console.error("Analytics error:", error);
     res.status(500).json({ error: error.message });
   }
 };
