@@ -24,7 +24,7 @@ const app = express();
 app.use(express.json({ limit: "150mb" }));
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://cleanfoods.vercel.app"],
+    origin: ["http://localhost:3000", "https://regenessa.vercel.app"],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
