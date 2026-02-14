@@ -28,7 +28,11 @@ const app = express();
 app.use(express.json({ limit: "150mb" }));
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://regenessa.vercel.app"],
+    origin: [
+      "http://localhost:3000", // For local development
+      "https://regenessa--lubby-59574.us-east4.hosted.app", // Your Firebase live URL
+      "https://regenessa.com",
+    ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
