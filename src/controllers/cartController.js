@@ -15,7 +15,16 @@ exports.getCart = async (req, res) => {
 // 2. ADD/UPDATE ITEM IN CART
 exports.addToCart = async (req, res) => {
   try {
-    const { productId, name, price, quantity, imageUrl, unit } = req.body;
+    const {
+      productId,
+      name,
+      price,
+      quantity,
+      imageUrl,
+      unit,
+      setPrice,
+      setQuantity,
+    } = req.body;
 
     const userId = req.user.userId || req.user.id;
 
@@ -28,6 +37,8 @@ exports.addToCart = async (req, res) => {
 
     const cleanPrice = Number(price) || 0;
     const cleanQty = Number(quantity) || 1;
+    const cleanSetPrice = Number(setPrice) || null;
+    const cleanSetQty = Number(setQuantity) || null;
 
     if (doc.exists) {
       items = doc.data().items || [];
@@ -35,6 +46,9 @@ exports.addToCart = async (req, res) => {
 
       if (itemIndex > -1) {
         items[itemIndex].quantity += cleanQty;
+        // Always refresh set pricing fields in case admin updated them
+        items[itemIndex].setPrice = cleanSetPrice;
+        items[itemIndex].setQuantity = cleanSetQty;
       } else {
         items.push({
           productId,
@@ -43,6 +57,8 @@ exports.addToCart = async (req, res) => {
           quantity: cleanQty,
           imageUrl: imageUrl || "",
           unit: unit || "bottle",
+          setPrice: cleanSetPrice,
+          setQuantity: cleanSetQty,
         });
       }
     } else {
@@ -54,6 +70,8 @@ exports.addToCart = async (req, res) => {
           quantity: cleanQty,
           imageUrl: imageUrl || "",
           unit: unit || "bottle",
+          setPrice: cleanSetPrice,
+          setQuantity: cleanSetQty,
         },
       ];
     }
@@ -82,7 +100,7 @@ exports.addToCart = async (req, res) => {
 // 1B. BULK ADD ITEMS (FOR PACKAGES/COMBOS)
 exports.bulkAddItems = async (req, res) => {
   try {
-    const { items: newItems } = req.body; // Expecting an array of items
+    const { items: newItems } = req.body;
     const userId = req.user.userId || req.user.id;
 
     if (!userId) return res.status(401).json({ error: "User ID not found" });
@@ -95,17 +113,18 @@ exports.bulkAddItems = async (req, res) => {
       currentItems = doc.data().items || [];
     }
 
-    // Merge logic
     newItems.forEach((newItem) => {
       const itemIndex = currentItems.findIndex(
         (item) => item.productId === newItem.productId,
       );
 
       if (itemIndex > -1) {
-        // Increment quantity if product already exists in cart
         currentItems[itemIndex].quantity += newItem.quantity || 1;
+        // Refresh set pricing fields
+        currentItems[itemIndex].setPrice = Number(newItem.setPrice) || null;
+        currentItems[itemIndex].setQuantity =
+          Number(newItem.setQuantity) || null;
       } else {
-        // Add as new entry
         currentItems.push({
           productId: newItem.productId,
           name: newItem.name || "Unknown Supplement",
@@ -113,6 +132,8 @@ exports.bulkAddItems = async (req, res) => {
           quantity: Number(newItem.quantity) || 1,
           imageUrl: newItem.imageUrl || "",
           unit: newItem.unit || "unit",
+          setPrice: Number(newItem.setPrice) || null,
+          setQuantity: Number(newItem.setQuantity) || null,
         });
       }
     });
@@ -131,16 +152,18 @@ exports.bulkAddItems = async (req, res) => {
       { merge: true },
     );
 
-    res
-      .status(200)
-      .json({ message: "Bundle added to cart", items: currentItems, total });
+    res.status(200).json({
+      message: "Bundle added to cart",
+      items: currentItems,
+      total,
+    });
   } catch (err) {
     console.error("BULK_CART_ERROR:", err.message);
     res.status(500).json({ error: "Failed to add bundle: " + err.message });
   }
 };
 
-// 2B. UPDATE ITEM QUANTITY (NEW - THIS WAS MISSING!)
+// 2B. UPDATE ITEM QUANTITY
 exports.updateQuantity = async (req, res) => {
   try {
     const { productId } = req.params;
@@ -158,10 +181,8 @@ exports.updateQuantity = async (req, res) => {
       return res.status(404).json({ error: "Item not found in cart" });
     }
 
-    // Update the quantity
     items[itemIndex].quantity = Number(quantity);
 
-    // Recalculate total
     const total = items.reduce(
       (acc, item) => acc + item.price * item.quantity,
       0,

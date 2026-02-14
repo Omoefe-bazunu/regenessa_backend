@@ -28,6 +28,8 @@ const createProduct = async (req, res) => {
       stockCount,
       featured,
       status,
+      setPrice,
+      setQuantity,
     } = req.body;
 
     if (!name || !price) {
@@ -87,6 +89,8 @@ const createProduct = async (req, res) => {
       stockCount: Number(stockCount) || 0,
       featured: featured === "true" || featured === true,
       status: status || "In Stock",
+      setPrice: Number(setPrice) || 0,
+      setQuantity: Number(setQuantity) || 0,
       reviewCount: 0,
       avgRating: 0,
       createdAt: new Date().toISOString(),
@@ -160,6 +164,8 @@ const updateProduct = async (req, res) => {
     if (updates.featured)
       updates.featured =
         updates.featured === "true" || updates.featured === true;
+    if (updates.setPrice) updates.setPrice = Number(updates.setPrice);
+    if (updates.setQuantity) updates.setQuantity = Number(updates.setQuantity);
 
     // Convert comma-separated strings to arrays
     if (updates.benefits && !Array.isArray(updates.benefits))
