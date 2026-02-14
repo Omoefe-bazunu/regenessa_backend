@@ -13,6 +13,10 @@ const uploadRoutes = require("./routes/uploadRoutes");
 const consultationRoutes = require("./routes/consultationRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
+const testimonialRoutes = require("./routes/testimonialRoutes");
+const packageRoutes = require("./routes/packageRoutes");
+const brandRoutes = require("./routes/brandRoutes");
+const faqRoutes = require("./routes/faqRoutes");
 
 const app = express();
 
@@ -42,6 +46,10 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/consultations", consultationRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/testimonials", testimonialRoutes);
+app.use("/api/packages", packageRoutes);
+app.use("/api/certifications", brandRoutes);
+app.use("/api/faqs", faqRoutes);
 
 // --- Health Check ---
 app.get("/health", (req, res) => {

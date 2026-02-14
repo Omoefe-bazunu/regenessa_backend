@@ -49,28 +49,4 @@ const storage = {
 
 module.exports = { db, bucket, admin, storage };
 
-// USE CASE FOR THE STORAGE
 
-// const { storage } = require('./path/to/firebase-config');
-
-// // Upload to orders folder
-// await storage.orders('order-123.pdf').save(pdfBuffer);
-
-// // Upload to products folder
-// await storage.products('product-image.jpg').save(imageBuffer);
-
-// // Use generic folder helper
-// await storage.folder('invoices').file('invoice-456.pdf').save(buffer);
-
-// // Upload from local file
-// await storage.folder('orders').upload('./local-file.pdf', 'order-123.pdf');
-
-// // Get download URL
-// const file = storage.products('product-image.jpg');
-// const [url] = await file.getSignedUrl({
-//   action: 'read',
-//   expires: '03-01-2030'
-// });
-
-// // Delete a file
-// await storage.orders('old-order.pdf').delete();

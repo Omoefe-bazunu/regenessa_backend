@@ -79,6 +79,67 @@ exports.addToCart = async (req, res) => {
   }
 };
 
+// 1B. BULK ADD ITEMS (FOR PACKAGES/COMBOS)
+exports.bulkAddItems = async (req, res) => {
+  try {
+    const { items: newItems } = req.body; // Expecting an array of items
+    const userId = req.user.userId || req.user.id;
+
+    if (!userId) return res.status(401).json({ error: "User ID not found" });
+
+    const cartRef = db.collection("carts").doc(userId);
+    const doc = await cartRef.get();
+
+    let currentItems = [];
+    if (doc.exists) {
+      currentItems = doc.data().items || [];
+    }
+
+    // Merge logic
+    newItems.forEach((newItem) => {
+      const itemIndex = currentItems.findIndex(
+        (item) => item.productId === newItem.productId,
+      );
+
+      if (itemIndex > -1) {
+        // Increment quantity if product already exists in cart
+        currentItems[itemIndex].quantity += newItem.quantity || 1;
+      } else {
+        // Add as new entry
+        currentItems.push({
+          productId: newItem.productId,
+          name: newItem.name || "Unknown Supplement",
+          price: Number(newItem.price) || 0,
+          quantity: Number(newItem.quantity) || 1,
+          imageUrl: newItem.imageUrl || "",
+          unit: newItem.unit || "unit",
+        });
+      }
+    });
+
+    const total = currentItems.reduce(
+      (acc, item) => acc + item.price * item.quantity,
+      0,
+    );
+
+    await cartRef.set(
+      {
+        items: currentItems,
+        total: Number(total.toFixed(2)),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+
+    res
+      .status(200)
+      .json({ message: "Bundle added to cart", items: currentItems, total });
+  } catch (err) {
+    console.error("BULK_CART_ERROR:", err.message);
+    res.status(500).json({ error: "Failed to add bundle: " + err.message });
+  }
+};
+
 // 2B. UPDATE ITEM QUANTITY (NEW - THIS WAS MISSING!)
 exports.updateQuantity = async (req, res) => {
   try {
