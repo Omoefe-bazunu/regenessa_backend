@@ -26,8 +26,8 @@ exports.submitInquiry = async (req, res) => {
 
     // 2. Email Notification to Admin via Resend
     await resend.emails.send({
-      from: "Regenessa <info@higher.com.ng>",
-      to: "raniem57@gmail.com",
+      from: "Regenessa <info@regenessa.com>",
+      to: "info@regenessa.com",
       subject: `New Contact Inquiry: ${name}`,
       html: `
         <div style="font-family: sans-serif; color: #1b4332; border: 1px solid #e5e7eb; padding: 25px; border-radius: 20px;">

@@ -1,15 +1,17 @@
 const { db } = require("../config/firebase");
-const { verifyPayment } = require("../utils/flutterwave");
+const { verifyPayment } = require("../utils/paystack");
 const { Resend } = require("resend");
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // 1. Submit Order
 const submitOrder = async (req, res) => {
   try {
-    const { items, totalAmount, shippingDetails, transactionId } = req.body;
+    const { items, totalAmount, shippingDetails, reference } = req.body;
+
+    // Check for duplicate order
     const existingOrder = await db
       .collection("orders")
-      .where("transactionId", "==", transactionId)
+      .where("paystackReference", "==", reference)
       .limit(1)
       .get();
 
@@ -19,14 +21,17 @@ const submitOrder = async (req, res) => {
         orderId: existingOrder.docs[0].id,
       });
     }
+
     const userId = req.user.userId;
 
     if (!items || items.length === 0)
       return res.status(400).json({ error: "Empty order" });
-    if (!transactionId)
-      return res.status(400).json({ error: "Transaction ID required" });
+    if (!reference)
+      return res.status(400).json({ error: "Payment reference required" });
 
-    const paymentData = await verifyPayment(transactionId);
+    // Verify Paystack payment
+    const paymentData = await verifyPayment(reference);
+
     if (!paymentData || paymentData.amount < totalAmount) {
       return res.status(400).json({ error: "Payment verification failed" });
     }
@@ -36,9 +41,8 @@ const submitOrder = async (req, res) => {
       items,
       totalAmount: Number(totalAmount),
       shippingDetails,
-      paymentMethod: "Flutterwave",
-      transactionId,
-      txRef: paymentData.tx_ref,
+      paymentMethod: "Paystack",
+      paystackReference: reference,
       status: "Processing",
       orderDate: new Date().toISOString(),
     };
@@ -46,17 +50,24 @@ const submitOrder = async (req, res) => {
     const orderRef = await db.collection("orders").add(orderData);
     await db.collection("carts").doc(userId).delete();
 
-    // Admin Notification [cite: 14]
+    // Admin Notification
     await resend.emails.send({
       from: "Regenessa <info@regenessa.com>",
-      to: "raniem57@gmail.com",
+      to: "info@regenessa.com",
       subject: `New Order #${orderRef.id.slice(0, 8).toUpperCase()}`,
-      html: `<p>New clinical order received for ₦${totalAmount.toLocaleString()}</p>`,
+      html: `
+        <h2>New Order Received</h2>
+        <p><strong>Order ID:</strong> ${orderRef.id}</p>
+        <p><strong>Customer:</strong> ${shippingDetails.fullName}</p>
+        <p><strong>Total:</strong> ₦${totalAmount.toLocaleString()}</p>
+        <p><strong>Payment Reference:</strong> ${reference}</p>
+      `,
     });
 
-    res
-      .status(201)
-      .json({ message: "Order placed successfully", orderId: orderRef.id });
+    res.status(201).json({
+      message: "Order placed successfully",
+      orderId: orderRef.id,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -79,10 +90,9 @@ const getUserOrders = async (req, res) => {
   }
 };
 
-// 3. ADMIN: Get All Orders (Check Removed)
+// 3. ADMIN: Get All Orders
 const getAllOrders = async (req, res) => {
   try {
-    // Permission checks removed for direct access
     const snapshot = await db
       .collection("orders")
       .orderBy("orderDate", "desc")
@@ -96,19 +106,18 @@ const getAllOrders = async (req, res) => {
   }
 };
 
-// 4. ADMIN: Update Status (Check Removed)
+// 4. ADMIN: Update Status
 const updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status } = req.body;
 
-    // Permission checks removed for direct access
     await db
       .collection("orders")
       .doc(orderId)
       .update({ status, updatedAt: new Date().toISOString() });
 
-    res.status(200).json({ message: `Registry updated: ${status}` });
+    res.status(200).json({ message: `Order status updated: ${status}` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

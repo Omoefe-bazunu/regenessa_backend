@@ -17,6 +17,7 @@ const testimonialRoutes = require("./routes/testimonialRoutes");
 const packageRoutes = require("./routes/packageRoutes");
 const brandRoutes = require("./routes/brandRoutes");
 const faqRoutes = require("./routes/faqRoutes");
+const webhookRoutes = require("./routes/webhookRoutes");
 
 const app = express();
 
@@ -32,7 +33,7 @@ app.use(
       "http://localhost:3000", // For local development
       "https://regenessa--lubby-59574.us-east4.hosted.app", // Your Firebase live URL
       "https://regenessa.com",
-      "https://www.regenessa.com"
+      "https://www.regenessa.com",
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
@@ -55,6 +56,7 @@ app.use("/api/testimonials", testimonialRoutes);
 app.use("/api/packages", packageRoutes);
 app.use("/api/certifications", brandRoutes);
 app.use("/api/faqs", faqRoutes);
+app.use("/api/webhooks", webhookRoutes);
 
 // --- Health Check ---
 app.get("/health", (req, res) => {
