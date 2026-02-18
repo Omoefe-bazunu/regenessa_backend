@@ -2,7 +2,6 @@ const { db, bucket } = require("../config/firebase");
 
 /**
  * OPTIMIZED: Streaming upload for better performance on Render.
- * Pipes the buffer directly to Google Cloud Storage.
  */
 const uploadToStorageStream = (file, folder = "testimonials") => {
   return new Promise((resolve, reject) => {
@@ -56,21 +55,27 @@ exports.createTestimonial = async (req, res) => {
   }
 };
 
-// 2. GET ALL EVIDENCE (With Fallback)
+// 2. GET ALL EVIDENCE (With Type Filtering & Accurate Pagination)
 exports.getTestimonials = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 3;
+    const type = req.query.type; // Extract type (video or image)
     const skip = (page - 1) * limit;
 
-    const collectionRef = db.collection("testimonials");
+    let query = db.collection("testimonials");
 
-    // Get total count for frontend pagination state
-    const totalSnapshot = await collectionRef.count().get();
+    // CRITICAL: Filter by type if provided
+    if (type) {
+      query = query.where("type", "==", type);
+    }
+
+    // Get total count for THIS SPECIFIC TYPE for accurate pagination
+    const totalSnapshot = await query.count().get();
     const totalItems = totalSnapshot.data().count;
 
-    // Fetch paginated data
-    const snapshot = await collectionRef
+    // Fetch paginated data for the specific type
+    const snapshot = await query
       .orderBy("createdAt", "desc")
       .offset(skip)
       .limit(limit)
@@ -88,17 +93,12 @@ exports.getTestimonials = async (req, res) => {
       totalItems,
     });
   } catch (error) {
-    console.warn("Pagination fallback triggered.");
-    const snapshot = await db.collection("testimonials").limit(limit).get();
-    const evidence = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    res.status(200).json({ evidence, totalPages: 1, currentPage: 1 });
+    console.error("Testimonial Fetch Error:", error);
+    res.status(500).json({ error: "Failed to fetch testimonials" });
   }
 };
 
-// 3. DELETE EVIDENCE (With Bucket Cleanup)
+// 3. DELETE EVIDENCE
 exports.deleteTestimonial = async (req, res) => {
   try {
     const { id } = req.params;
