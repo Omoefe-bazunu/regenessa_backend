@@ -19,6 +19,8 @@ const brandRoutes = require("./routes/brandRoutes");
 const faqRoutes = require("./routes/faqRoutes");
 const webhookRoutes = require("./routes/webhookRoutes");
 const featuredProductsRoutes = require("./routes/featuredProductsRoutes");
+const blogRoutes = require("./routes/blogRoutes");
+const eventRoutes = require("./routes/eventRoutes");
 
 const app = express();
 
@@ -59,6 +61,8 @@ app.use("/api/certifications", brandRoutes);
 app.use("/api/faqs", faqRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/featured-products", featuredProductsRoutes);
+app.use("/api/blog", blogRoutes);
+app.use("/api/events", eventRoutes);
 
 // --- Health Check ---
 app.get("/health", (req, res) => {
